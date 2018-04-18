@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using Foundation;
 using WebKit;
 using Xam.Plugin.WebView.Abstractions;
@@ -69,19 +70,39 @@ namespace Xam.Plugin.WebView.iOS
 
         [Export("webView:didFinishNavigation:")]
         public async override void DidFinishNavigation(WKWebView webView, WKNavigation navigation)
-        {
-			if (Reference == null || !Reference.TryGetTarget(out FormsWebViewRenderer renderer)) return;
+        {         
+			FormsWebViewRenderer renderer;
+			if (Reference == null || !Reference.TryGetTarget(out renderer)) return;
 			if (renderer.Element == null) return;
 
             renderer.Element.HandleNavigationCompleted(webView.Url.ToString());
             await renderer.OnJavascriptInjectionRequest(FormsWebView.InjectedFunction);
+            
+			if (Reference == null || !Reference.TryGetTarget(out renderer)) return;
+            if (renderer.Element == null) return;
 
             if (renderer.Element.EnableGlobalCallbacks)
-                foreach (var function in FormsWebView.GlobalRegisteredCallbacks)
-    				await renderer.OnJavascriptInjectionRequest(FormsWebView.GenerateFunctionScript(function.Key));
+			{
+				string[] globals = FormsWebView.GlobalRegisteredCallbacks.Keys.ToArray();
+				for (int i = 0; i < globals.Length; i++)
+				{
+					string f = globals[i];
+					await renderer.OnJavascriptInjectionRequest(FormsWebView.GenerateFunctionScript(f));
 
-            foreach (var function in renderer.Element.LocalRegisteredCallbacks)
-                await renderer.OnJavascriptInjectionRequest(FormsWebView.GenerateFunctionScript(function.Key));
+					if (Reference == null || !Reference.TryGetTarget(out renderer)) return;
+                    if (renderer.Element == null) return;
+				}
+			}
+
+			string[] locals = renderer.Element.LocalRegisteredCallbacks.Keys.ToArray();
+			for (int i = 0; i < locals.Length; i++)
+			{
+				string f = locals[i];
+                await renderer.OnJavascriptInjectionRequest(FormsWebView.GenerateFunctionScript(f));
+
+				if (Reference == null || !Reference.TryGetTarget(out renderer)) return;
+                if (renderer.Element == null) return;
+			}
 
             renderer.Element.CanGoBack = webView.CanGoBack;
             renderer.Element.CanGoForward = webView.CanGoForward;
